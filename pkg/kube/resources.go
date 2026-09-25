@@ -52,6 +52,7 @@ type ResourceProvider struct {
 	SourceType    string
 	Nodes         []corev1.Node
 	Namespaces    []corev1.Namespace
+	Pods          []corev1.Pod
 	Resources     resourceKindMap
 }
 
@@ -127,6 +128,7 @@ func newResourceProvider(version, sourceType, sourceName string) ResourceProvide
 		CreationTime:  time.Now(),
 		Nodes:         make([]corev1.Node, 0),
 		Namespaces:    make([]corev1.Namespace, 0),
+		Pods:          make([]corev1.Pod, 0),
 		Resources:     make(map[string][]GenericResource),
 	}
 }
@@ -156,13 +158,13 @@ func CreateResourceProviderFromResource(ctx context.Context, workload string) (*
 	}
 	serverVersion, err := clientSet.Discovery().ServerVersion()
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching Cluster API version: %w", err)
+		return nil, fmt.Errorf("error fetching Cluster API version: %w", err)
 	}
 	resources := newResourceProvider(serverVersion.Major+"."+serverVersion.Minor, "Resource", workload)
 
 	parts := strings.Split(workload, "/")
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("Invalid workload identifier %s. Should be in format namespace/kind/version/name, e.g. nginx-ingress/Deployment.apps/v1/default-backend", workload)
+		return nil, fmt.Errorf("invalid workload identifier %s. Should be in format namespace/kind/version/name, e.g. nginx-ingress/Deployment.apps/v1/default-backend", workload)
 	}
 	namespace := parts[0]
 	kind := parts[1]
@@ -171,11 +173,11 @@ func CreateResourceProviderFromResource(ctx context.Context, workload string) (*
 
 	obj, err := GetObject(ctx, namespace, kind, version, name, dynamicClient, restMapper)
 	if err != nil {
-		return nil, fmt.Errorf("Could not find workload %s: %w", workload, err)
+		return nil, fmt.Errorf("could not find workload %s: %w", workload, err)
 	}
 	workloadObj, err := NewGenericResourceFromUnstructured(*obj, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse workload %s: %w", workload, err)
+		return nil, fmt.Errorf("could not parse workload %s: %w", workload, err)
 	}
 	resources.Resources.addResource(workloadObj)
 	return &resources, nil
@@ -196,6 +198,9 @@ func CreateResourceProviderFromPath(directory string) (*ResourceProvider, error)
 	}
 
 	visitFile := func(path string, f os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if !strings.HasSuffix(path, ".yml") && !strings.HasSuffix(path, ".yaml") {
 			return nil
 		}
@@ -246,19 +251,19 @@ func GetKubeClient(ctx context.Context, kubeContext string) (dynamic.Interface, 
 		kubeConf, err = config.GetConfig()
 	}
 	if err != nil {
-		return nil, nil, nil, "", fmt.Errorf("Error fetching KubeConfig: %v", err)
+		return nil, nil, nil, "", fmt.Errorf("error fetching KubeConfig: %v", err)
 	}
 	clientSet, err := kubernetes.NewForConfig(kubeConf)
 	if err != nil {
-		return nil, nil, nil, "", fmt.Errorf("Error creating Kubernetes client: %v", err)
+		return nil, nil, nil, "", fmt.Errorf("error creating Kubernetes client: %v", err)
 	}
 	dynamicClient, err := dynamic.NewForConfig(kubeConf)
 	if err != nil {
-		return nil, nil, nil, "", fmt.Errorf("Error connecting to dynamic interface: %v", err)
+		return nil, nil, nil, "", fmt.Errorf("error connecting to dynamic interface: %v", err)
 	}
 	resources, err := restmapper.GetAPIGroupResources(clientSet.Discovery())
 	if err != nil {
-		return nil, nil, nil, "", fmt.Errorf("Error getting API Group resources: %v", err)
+		return nil, nil, nil, "", fmt.Errorf("error getting API Group resources: %v", err)
 	}
 	return dynamicClient, restmapper.NewDiscoveryRESTMapper(resources), clientSet, kubeConf.Host, nil
 }
@@ -304,6 +309,14 @@ func CreateResourceProviderFromAPI(ctx context.Context, kube kubernetes.Interfac
 		}
 		namespaces = nsList
 	}
+
+	logrus.Info("Loading pods")
+	pods, err := kube.CoreV1().Pods(c.Namespace).List(ctx, listOpts)
+	if err != nil {
+		logrus.Errorf("Error fetching Pods: %v", err)
+		return nil, err
+	}
+
 	logrus.Info("Setting up restmapper")
 	resources, err := restmapper.GetAPIGroupResources(kube.Discovery())
 	if err != nil {
@@ -383,6 +396,7 @@ func CreateResourceProviderFromAPI(ctx context.Context, kube kubernetes.Interfac
 
 	provider.Nodes = nodes.Items
 	provider.Namespaces = namespaces.Items
+	provider.Pods = pods.Items
 	provider.Resources.addResources(kubernetesResources)
 	logrus.Info("Done loading Kubernetes resources")
 	return &provider, nil
@@ -442,6 +456,7 @@ func (resources *ResourceProvider) addResourceFromString(contents string) error 
 			return err
 		}
 		workload.OriginalObjectYAML = contentBytes
+		resources.Pods = append(resources.Pods, pod)
 		resources.Resources.addResource(workload)
 	} else {
 		newResource, err := NewGenericResourceFromBytes(contentBytes)

@@ -1,4 +1,4 @@
-FROM alpine:3.23
+FROM alpine:3.24.1
 
 LABEL org.opencontainers.image.authors="FairwindsOps, Inc." \
       org.opencontainers.image.vendor="FairwindsOps, Inc." \
@@ -10,7 +10,9 @@ LABEL org.opencontainers.image.authors="FairwindsOps, Inc." \
       org.opencontainers.image.licenses="Apache License 2.0"
 
 WORKDIR /usr/local/bin
-RUN apk update && apk -U upgrade && apk --no-cache add ca-certificates
+# Install ca-certs
+RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add --upgrade libcrypto3 libssl3
 
 RUN addgroup -S polaris && adduser -u 1200 -S polaris -G polaris
 USER 1200

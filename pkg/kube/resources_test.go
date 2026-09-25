@@ -40,7 +40,7 @@ func TestGetResourcesFromPath(t *testing.T) {
 	assert.Equal(t, 0, len(provider.Nodes), "Should not have any nodes")
 
 	assert.Equal(t, 1, len(provider.Namespaces), "Should have a namespace")
-	assert.Equal(t, "two", provider.Namespaces[0].ObjectMeta.Name)
+	assert.Equal(t, "two", provider.Namespaces[0].Name)
 
 	namespaceCount := map[string]int{}
 	for _, resources := range provider.Resources {
@@ -69,8 +69,8 @@ func TestGetMultipleResourceFromSingleFile(t *testing.T) {
 	assert.Equal(t, "dashboard", resources.Resources["apps/Deployment"][0].PodSpec.Containers[0].Name)
 
 	assert.Equal(t, 2, len(resources.Namespaces), "Should have a namespace")
-	assert.Equal(t, "polaris", resources.Namespaces[0].ObjectMeta.Name)
-	assert.Equal(t, "polaris-2", resources.Namespaces[1].ObjectMeta.Name)
+	assert.Equal(t, "polaris", resources.Namespaces[0].Name)
+	assert.Equal(t, "polaris-2", resources.Namespaces[1].Name)
 }
 
 func TestGetMultipleResourceFromBadFile(t *testing.T) {
@@ -92,8 +92,8 @@ func TestAddResourcesFromReader(t *testing.T) {
 	assert.Equal(t, "dashboard", resources.Resources["apps/Deployment"][0].PodSpec.Containers[0].Name)
 
 	assert.Equal(t, 2, len(resources.Namespaces), "Should have a namespace")
-	assert.Equal(t, "polaris", resources.Namespaces[0].ObjectMeta.Name)
-	assert.Equal(t, "polaris-2", resources.Namespaces[1].ObjectMeta.Name)
+	assert.Equal(t, "polaris", resources.Namespaces[0].Name)
+	assert.Equal(t, "polaris-2", resources.Namespaces[1].Name)
 }
 
 func TestGetResourceFromAPI(t *testing.T) {
@@ -157,6 +157,7 @@ func TestGetResourceFromAPI(t *testing.T) {
 					assert.Equal(t, tt.want.SourceName, resources.SourceName)
 					assert.IsType(t, tt.want.CreationTime, resources.CreationTime)
 					assert.Equal(t, 0, len(resources.Nodes), "Should not have any nodes")
+					assert.Equal(t, 5, len(resources.Pods), "Should have 5 pods")
 					for k, v := range resources.Resources {
 						fmt.Println("cont", k, v)
 					}
